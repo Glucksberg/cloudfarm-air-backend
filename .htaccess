@@ -1,0 +1,18 @@
+# Proteger arquivo do banco
+<Files "database.sqlite">
+    Order allow,deny
+    Deny from all
+</Files>
+
+# Permitir apenas POST nos scripts principais
+<Files "activate.php">
+    <RequireAll>
+        Require method POST
+    </RequireAll>
+</Files>
+
+<Files "check.php">
+    <RequireAll>
+        Require method POST
+    </RequireAll>
+</Files> 
