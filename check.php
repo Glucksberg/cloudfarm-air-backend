@@ -44,12 +44,28 @@ try {
     // Verificar validade da licença
     $expiry_date = new DateTime($device['expiry_date']);
     $current_time = new DateTime();
+    $last_online = new DateTime($device['last_online_check']);
+    
+    // Verificar se passou do período de graça offline (15 dias)
+    $days_offline = $current_time->diff($last_online)->days;
+    $offline_grace_days = 15;
 
     if ($current_time > $expiry_date) {
         echo json_encode([
             'status' => 'expired',
             'message' => 'License expired',
             'expiry_date' => $device['expiry_date']
+        ]);
+    } elseif ($days_offline > $offline_grace_days) {
+        // AQUI ESTÁ A CORREÇÃO: Verificar período offline
+        echo json_encode([
+            'status' => 'offline_expired',
+            'message' => 'Device offline for too long (' . $days_offline . ' days)',
+            'expiry_date' => $device['expiry_date'],
+            'last_online_check' => $device['last_online_check'],
+            'days_offline' => $days_offline,
+            'offline_grace_days' => $offline_grace_days,
+            'username' => $device['username']
         ]);
     } else {
         $days_remaining = $current_time->diff($expiry_date)->days;
@@ -60,7 +76,8 @@ try {
             'days_remaining' => $days_remaining,
             'username' => $device['username'],
             'last_online_check' => $now,
-            'offline_grace_days' => 7
+            'days_offline' => $days_offline,
+            'offline_grace_days' => $offline_grace_days
         ]);
     }
 

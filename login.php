@@ -93,7 +93,7 @@ try {
                     'expiry_date' => $existing_device['expiry_date'],
                     'days_remaining' => $days_remaining,
                     'last_online_check' => $now,
-                    'offline_grace_days' => 7
+                    'offline_grace_days' => 15
                 ],
                 'user_info' => [
                     'username' => $username,
@@ -131,6 +131,33 @@ try {
                 ]
             ]);
         } else {
+            // ✅ CORREÇÃO: Registrar dispositivo ANTES de enviar resposta
+            $activation_date = $now;
+            $device_expiry = $user_expiry; // Mesmo expiry do usuário
+            
+            $stmt = $db->prepare('INSERT INTO devices (android_id, username, activation_date, expiry_date, last_online_check, app_version, device_info) VALUES (?, ?, ?, ?, ?, ?, ?)');
+            $stmt->bindValue(1, $android_id, SQLITE3_TEXT);
+            $stmt->bindValue(2, $username, SQLITE3_TEXT);
+            $stmt->bindValue(3, $activation_date, SQLITE3_TEXT);
+            $stmt->bindValue(4, $device_expiry, SQLITE3_TEXT);
+            $stmt->bindValue(5, $now, SQLITE3_TEXT);
+            $stmt->bindValue(6, $app_version, SQLITE3_TEXT);
+            $stmt->bindValue(7, $device_info, SQLITE3_TEXT);
+            
+            $result = $stmt->execute();
+            if (!$result) {
+                error_log("DEVICE INSERT FAILED: " . $db->lastErrorMsg());
+            }
+
+            // Log da ativação
+            $stmt = $db->prepare('INSERT INTO access_logs (android_id, username, action, ip_address) VALUES (?, ?, ?, ?)');
+            $stmt->bindValue(1, $android_id, SQLITE3_TEXT);
+            $stmt->bindValue(2, $username, SQLITE3_TEXT);
+            $stmt->bindValue(3, 'user_login_device_registered', SQLITE3_TEXT);
+            $stmt->bindValue(4, $ip_address, SQLITE3_TEXT);
+            $stmt->execute();
+            
+            // Agora enviar resposta (dispositivo já registrado)
             $days_remaining = $current_time->diff($expiry_date)->days;
             echo json_encode([
                 'status' => 'success',
@@ -139,7 +166,7 @@ try {
                     'expiry_date' => $user_expiry,
                     'days_remaining' => $days_remaining,
                     'last_online_check' => $now,
-                    'offline_grace_days' => 7
+                    'offline_grace_days' => 15
                 ],
                 'user_info' => [
                     'username' => $username,
@@ -147,14 +174,6 @@ try {
                 ]
             ]);
         }
-
-        // Log apenas para auditoria (sem criar registro de dispositivo)
-        $stmt = $db->prepare('INSERT INTO access_logs (android_id, username, action, ip_address) VALUES (?, ?, ?, ?)');
-        $stmt->bindValue(1, $android_id, SQLITE3_TEXT);
-        $stmt->bindValue(2, $username, SQLITE3_TEXT);
-        $stmt->bindValue(3, 'user_login', SQLITE3_TEXT);
-        $stmt->bindValue(4, $ip_address, SQLITE3_TEXT);
-        $stmt->execute();
     }
 
 } catch (Exception $e) {
